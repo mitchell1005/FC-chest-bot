@@ -61,7 +61,6 @@ module.exports = {
         .setTimestamp();
 
       for (const p of projects) {
-        // Get item count and chest coverage
         const { data: items } = await supabase
           .from('project_items')
           .select('item_name, quantity_needed')
@@ -72,11 +71,16 @@ module.exports = {
           .select('item_name, quantity');
 
         let fulfilled = 0;
+        const allocated = {};
         for (const item of items || []) {
-          // Strip part prefix (e.g. "Hull - Cobalt Ingot" -> "Cobalt Ingot") for chest matching
           const strippedName = item.item_name.replace(/^[^-]+ - /, '').toLowerCase();
-          const found = (chest || []).find(c => c.item_name.toLowerCase() === strippedName);
-          if (found && found.quantity >= item.quantity_needed) fulfilled++;
+          const inChest = (chest || []).find(c => c.item_name.toLowerCase() === strippedName);
+          const totalInChest = inChest?.quantity || 0;
+          const alreadyAllocated = allocated[strippedName] || 0;
+          const available = Math.max(0, totalInChest - alreadyAllocated);
+          const chestQty = Math.min(available, item.quantity_needed);
+          allocated[strippedName] = alreadyAllocated + chestQty;
+          if (chestQty >= item.quantity_needed) fulfilled++;
         }
 
         const total = items?.length || 0;
@@ -125,8 +129,6 @@ module.exports = {
 
       let readyLines = [];
       let neededLines = [];
-
-      // Track how much of each chest item has been allocated to previous project items
       const allocated = {};
 
       for (const item of items || []) {
@@ -136,55 +138,55 @@ module.exports = {
         const alreadyAllocated = allocated[strippedName] || 0;
         const available = Math.max(0, totalInChest - alreadyAllocated);
         const chestQty = Math.min(available, item.quantity_needed);
-
-        // Allocate what this item uses
         allocated[strippedName] = alreadyAllocated + chestQty;
 
-        const claimed = (claims || [])
-          .filter(c => c.item_name.toLowerCase() === item.item_name.toLowerCase())
-          .reduce((sum, c) => sum + c.quantity, 0);
+        const activeClaim = (claims || []).find(c =>
+          c.item_name.toLowerCase() === item.item_name.toLowerCase()
+        );
 
         const still_needed = Math.max(0, item.quantity_needed - chestQty);
 
         if (still_needed === 0) {
           readyLines.push(`✅ ${item.item_name} (${chestQty}/${item.quantity_needed})`);
         } else {
-          const claimStr = claimed > 0 ? ` *(${claimed} claimed)*` : '';
+          let claimStr = '';
+          if (activeClaim) {
+            const icon = activeClaim.claim_type === 'craft' ? '⚒️' : '⛏️';
+            const action = activeClaim.claim_type === 'craft' ? 'crafting' : 'gathering';
+            claimStr = ` — ${icon} ${activeClaim.discord_user} is ${action}`;
+          }
           neededLines.push(`❌ ${item.item_name} — need ${still_needed} more (have ${chestQty})${claimStr}`);
         }
       }
 
       const allLines = [];
-
       if (neededLines.length) {
         allLines.push('**⏳ Still Needed**');
         allLines.push(...neededLines);
+        allLines.push('');
       }
-
       if (readyLines.length) {
         allLines.push('**✅ In Chest**');
         allLines.push(...readyLines);
-        allLines.push('');
       }
 
       if (!readyLines.length && !neededLines.length) {
         embed.setDescription('No items defined for this project yet. Use `/project add-item` to add some.');
       } else {
-        // Discord description limit is 4096 chars, chunk if needed
         const fullText = allLines.join('\n');
         if (fullText.length <= 4096) {
           embed.setDescription(fullText);
         } else {
-          // Fall back to chunked fields without visible gap
-          if (readyLines.length) {
-            const chunks = chunkLines(readyLines, 1024);
-            chunks.forEach((chunk, i) => {
-              embed.addFields({ name: i === 0 ? '✅ In Chest' : '\u200b', value: chunk, inline: false });
-            });
-          }
           if (neededLines.length) {
             const chunks = chunkLines(neededLines, 1024);
             embed.addFields({ name: '⏳ Still Needed', value: chunks[0], inline: false });
+            chunks.slice(1).forEach(chunk => {
+              embed.addFields({ name: '\u200b', value: chunk, inline: false });
+            });
+          }
+          if (readyLines.length) {
+            const chunks = chunkLines(readyLines, 1024);
+            embed.addFields({ name: '✅ In Chest', value: chunks[0], inline: false });
             chunks.slice(1).forEach(chunk => {
               embed.addFields({ name: '\u200b', value: chunk, inline: false });
             });
@@ -290,6 +292,12 @@ module.exports = {
   }
 };
 
+function progressBar(current, total) {
+  if (total === 0) return '▱▱▱▱▱▱▱▱▱▱';
+  const filled = Math.round((current / total) * 10);
+  return '▰'.repeat(filled) + '▱'.repeat(10 - filled);
+}
+
 function chunkLines(lines, maxLength) {
   const chunks = [];
   let current = '';
@@ -303,10 +311,4 @@ function chunkLines(lines, maxLength) {
   }
   if (current) chunks.push(current);
   return chunks;
-}
-
-function progressBar(current, total) {
-  if (total === 0) return '▱▱▱▱▱▱▱▱▱▱';
-  const filled = Math.round((current / total) * 10);
-  return '▰'.repeat(filled) + '▱'.repeat(10 - filled);
 }
