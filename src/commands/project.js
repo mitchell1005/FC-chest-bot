@@ -154,26 +154,42 @@ module.exports = {
         }
       }
 
-      if (readyLines.length) {
-        embed.addFields({ name: '✅ In Chest', value: readyLines.join('\n'), inline: false });
-      }
-      if (readyLines.length) {
-        embed.addFields({ name: '✅ In Chest', value: readyLines.join('\n'), inline: false });
-      }
+      const allLines = [];
 
       if (neededLines.length) {
-        const chunks = chunkLines(neededLines, 1024);
-        chunks.forEach((chunk, i) => {
-          embed.addFields({
-            name: i === 0 ? '⏳ Still Needed' : '\u200b',
-            value: chunk,
-            inline: false
-          });
-        });
+        allLines.push('**⏳ Still Needed**');
+        allLines.push(...neededLines);
+      }
+
+      if (readyLines.length) {
+        allLines.push('**✅ In Chest**');
+        allLines.push(...readyLines);
+        allLines.push('');
       }
 
       if (!readyLines.length && !neededLines.length) {
         embed.setDescription('No items defined for this project yet. Use `/project add-item` to add some.');
+      } else {
+        // Discord description limit is 4096 chars, chunk if needed
+        const fullText = allLines.join('\n');
+        if (fullText.length <= 4096) {
+          embed.setDescription(fullText);
+        } else {
+          // Fall back to chunked fields without visible gap
+          if (readyLines.length) {
+            const chunks = chunkLines(readyLines, 1024);
+            chunks.forEach((chunk, i) => {
+              embed.addFields({ name: i === 0 ? '✅ In Chest' : '\u200b', value: chunk, inline: false });
+            });
+          }
+          if (neededLines.length) {
+            const chunks = chunkLines(neededLines, 1024);
+            embed.addFields({ name: '⏳ Still Needed', value: chunks[0], inline: false });
+            chunks.slice(1).forEach(chunk => {
+              embed.addFields({ name: '\u200b', value: chunk, inline: false });
+            });
+          }
+        }
       }
 
       return interaction.reply({ embeds: [embed] });
