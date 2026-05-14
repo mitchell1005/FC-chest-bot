@@ -13,7 +13,7 @@ module.exports = {
         // Get all active gather claims for this user
         const { data: claims } = await supabase
             .from('claims')
-            .select('*, projects(name), project_items!inner(quantity_needed)')
+            .select('*, projects(name)')
             .eq('discord_uid', interaction.user.id)
             .eq('status', 'active')
             .eq('claim_type', 'gather');
