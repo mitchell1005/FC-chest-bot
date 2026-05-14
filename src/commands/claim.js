@@ -221,10 +221,10 @@ module.exports = {
       }
 
       await supabase.from('claims')
-        .update({ status: 'fulfilled', fulfilled_at: new Date().toISOString() })
+        .delete()
         .eq('id', claim.id);
 
-      return interaction.reply(`✅ Dropped your claim on **${itemName}** for **${projectName}**.`);
+      return interaction.reply(`🗑️ Deleted your claim on **${itemName}** for **${projectName}**.`);
     }
   },
 
