@@ -1,8 +1,6 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const supabase = require('../supabase');
 
-const XIVAPI_BASE = 'https://xivapi.com';
-
 const XIVAPI_BASE = 'https://v2.xivapi.com';
 
 async function getRecipe(itemName) {
