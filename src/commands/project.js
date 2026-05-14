@@ -126,10 +126,20 @@ module.exports = {
       let readyLines = [];
       let neededLines = [];
 
+      // Track how much of each chest item has been allocated to previous project items
+      const allocated = {};
+
       for (const item of items || []) {
         const strippedName = item.item_name.replace(/^[^-]+ - /, '').toLowerCase();
         const inChest = (chest || []).find(c => c.item_name.toLowerCase() === strippedName);
-        const chestQty = inChest?.quantity || 0;
+        const totalInChest = inChest?.quantity || 0;
+        const alreadyAllocated = allocated[strippedName] || 0;
+        const available = Math.max(0, totalInChest - alreadyAllocated);
+        const chestQty = Math.min(available, item.quantity_needed);
+
+        // Allocate what this item uses
+        allocated[strippedName] = alreadyAllocated + chestQty;
+
         const claimed = (claims || [])
           .filter(c => c.item_name.toLowerCase() === item.item_name.toLowerCase())
           .reduce((sum, c) => sum + c.quantity, 0);
