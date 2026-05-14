@@ -1,0 +1,18 @@
+[
+  {
+    "Author": "Mitchell1005",
+    "Name": "FC Chest Sync",
+    "Punchline": "Syncs your FC chest to Discord automatically.",
+    "Description": "Automatically syncs FC chest contents to your Discord bot when the chest is opened.",
+    "InternalName": "FCChestSync",
+    "AssemblyVersion": "1.0.0.0",
+    "RepoUrl": "https://github.com/mitchell1005/fc-chest-bot",
+    "DalamudApiLevel": 15,
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": true,
+    "LoadPriority": 0,
+    "DownloadLinkInstall": "https://github.com/mitchell1005/fc-chest-bot/releases/latest/download/FCChestSync.zip",
+    "DownloadLinkUpdate": "https://github.com/mitchell1005/fc-chest-bot/releases/latest/download/FCChestSync.zip"
+  }
+]
