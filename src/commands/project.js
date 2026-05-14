@@ -73,7 +73,9 @@ module.exports = {
 
         let fulfilled = 0;
         for (const item of items || []) {
-          const found = (chest || []).find(c => c.item_name.toLowerCase() === item.item_name.toLowerCase());
+          // Strip part prefix (e.g. "Hull - Cobalt Ingot" -> "Cobalt Ingot") for chest matching
+          const strippedName = item.item_name.replace(/^[^-]+ - /, '').toLowerCase();
+          const found = (chest || []).find(c => c.item_name.toLowerCase() === strippedName);
           if (found && found.quantity >= item.quantity_needed) fulfilled++;
         }
 
@@ -125,7 +127,8 @@ module.exports = {
       let neededLines = [];
 
       for (const item of items || []) {
-        const inChest = (chest || []).find(c => c.item_name.toLowerCase() === item.item_name.toLowerCase());
+        const strippedName = item.item_name.replace(/^[^-]+ - /, '').toLowerCase();
+        const inChest = (chest || []).find(c => c.item_name.toLowerCase() === strippedName);
         const chestQty = inChest?.quantity || 0;
         const claimed = (claims || [])
           .filter(c => c.item_name.toLowerCase() === item.item_name.toLowerCase())
@@ -150,14 +153,15 @@ module.exports = {
 
       if (neededLines.length) {
         const chunks = chunkLines(neededLines, 1024);
-        for (let i = 0; i < chunks.length; i++) {
+        chunks.forEach((chunk, i) => {
           embed.addFields({
-            name: i === 0 ? '⏳ Still Needed' : '⏳ Still Needed (cont.)',
-            value: chunks[i],
+            name: i === 0 ? '⏳ Still Needed' : '\u200b',
+            value: chunk,
             inline: false
           });
-        }
+        });
       }
+
       if (!readyLines.length && !neededLines.length) {
         embed.setDescription('No items defined for this project yet. Use `/project add-item` to add some.');
       }

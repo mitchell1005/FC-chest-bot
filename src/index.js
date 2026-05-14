@@ -33,9 +33,9 @@ client.on('interactionCreate', async interaction => {
     console.error(`Error in /${interaction.commandName}:`, err);
     const msg = { content: '❌ An error occurred while running this command.', ephemeral: true };
     if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(msg).catch(() => {});
+      await interaction.followUp(msg).catch(() => { });
     } else {
-      await interaction.reply(msg).catch(() => {});
+      await interaction.reply(msg).catch(() => { });
     }
   }
 });
@@ -86,6 +86,10 @@ const server = http.createServer(async (req, res) => {
         }));
 
         // Delete old snapshot then insert new one (cleanest approach)
+        // Post notification BEFORE wiping old data so we can diff
+        await postSyncNotification(payload.characterName, rows);
+
+        // Delete old snapshot then insert new one (cleanest approach)
         await supabase.from('chest_items').delete().neq('id', '00000000-0000-0000-0000-000000000000');
         if (rows.length > 0) {
           await supabase.from('chest_items').insert(rows);
@@ -99,9 +103,6 @@ const server = http.createServer(async (req, res) => {
 
         // Auto-fulfill claims for items now in chest at required quantities
         await autoFulfillClaims();
-
-        // Post sync notification to Discord channel
-        await postSyncNotification(payload.characterName, rows.length);
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, itemCount: rows.length }));
@@ -160,15 +161,40 @@ async function autoFulfillClaims() {
 // ============================================================
 // Discord sync notification
 // ============================================================
-async function postSyncNotification(characterName, itemCount) {
+async function postSyncNotification(characterName, newItems) {
   const channelId = process.env.SYNC_LOG_CHANNEL_ID;
   if (!channelId || !client.isReady()) return;
 
   try {
-    const channel = await client.channels.fetch(channelId);
-    if (channel?.isTextBased()) {
-      await channel.send(`🔄 FC Chest synced by **${characterName || 'Unknown'}** — ${itemCount} items tracked.`);
+    // Get previous chest state before we wiped it
+    const { data: oldItems } = await supabase
+      .from('chest_items')
+      .select('item_name, quantity');
+
+    const added = [];
+    const removed = [];
+
+    for (const newItem of newItems) {
+      const old = (oldItems || []).find(o => o.item_name === newItem.item_name);
+      const oldQty = old?.quantity || 0;
+      const diff = newItem.quantity - oldQty;
+      if (diff > 0) added.push(`+${diff} ${newItem.item_name}`);
+      if (diff < 0) removed.push(`${diff} ${newItem.item_name}`);
     }
+
+    // Items that disappeared entirely
+    for (const oldItem of (oldItems || [])) {
+      const stillExists = newItems.find(n => n.item_name === oldItem.item_name);
+      if (!stillExists) removed.push(`-${oldItem.quantity} ${oldItem.item_name}`);
+    }
+
+    let message = `🔄 FC Chest synced by **${characterName || 'Unknown'}** — ${newItems.length} items tracked.`;
+    if (added.length) message += `\n📥 **Added:** ${added.join(', ')}`;
+    if (removed.length) message += `\n📤 **Removed:** ${removed.join(', ')}`;
+    if (!added.length && !removed.length) message += `\n*(No changes since last sync)*`;
+
+    const channel = await client.channels.fetch(channelId);
+    if (channel?.isTextBased()) await channel.send(message);
   } catch (err) {
     console.error('Failed to post sync notification:', err);
   }
