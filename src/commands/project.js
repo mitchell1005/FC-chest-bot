@@ -260,6 +260,21 @@ module.exports = {
   }
 };
 
+function chunkLines(lines, maxLength) {
+  const chunks = [];
+  let current = '';
+  for (const line of lines) {
+    if ((current + '\n' + line).length > maxLength) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current = current ? current + '\n' + line : line;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
 function progressBar(current, total) {
   if (total === 0) return '▱▱▱▱▱▱▱▱▱▱';
   const filled = Math.round((current / total) * 10);
