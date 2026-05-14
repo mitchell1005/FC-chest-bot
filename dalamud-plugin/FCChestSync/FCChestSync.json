@@ -1,0 +1,9 @@
+{
+  "Name": "FC Chest Sync",
+  "Author": "Mitchell1005",
+  "Punchline": "Syncs your FC chest to Discord automatically.",
+  "Description": "Automatically syncs FC chest contents to your Discord bot when the chest is opened.",
+  "RepoUrl": "",
+  "DalamudApiLevel": 15,
+  "Tags": [ "fc", "chest", "inventory", "discord", "sync" ]
+}

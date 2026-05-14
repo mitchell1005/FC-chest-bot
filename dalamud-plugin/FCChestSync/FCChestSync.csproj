@@ -1,0 +1,10 @@
+﻿<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+	<PropertyGroup>
+		<AssemblyName>FCChestSync</AssemblyName>
+		<Version>1.0.0.0</Version>
+		<DalamudApiLevel>15</DalamudApiLevel>
+	</PropertyGroup>
+	<ItemGroup>
+	  <Content Include="FCChestSync.json" />
+	</ItemGroup>
+</Project>

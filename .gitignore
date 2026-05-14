@@ -14,9 +14,36 @@ npm-debug.log*
 pids/
 *.pid
 
-# Build output (Dalamud plugin)
+# Build output (Dalamud plugin + C#)
 dalamud-plugin/**/bin/
 dalamud-plugin/**/obj/
+**/bin/
+**/obj/
+
+# C# / .NET
+*.exe
+*.dll
+!pluginmaster.json
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.nupkg
+*.snupkg
+*.nuget.props
+*.nuget.targets
+NuGet.Config
+.nuget/
+
+# C# test output
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+
+# Publish output
+**/publish/
+**/Properties/launchSettings.json
 
 # OS
 .DS_Store
@@ -27,3 +54,10 @@ Thumbs.db
 .idea/
 *.suo
 *.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+.vs/
+
+# Rider
+*.sln.iml
