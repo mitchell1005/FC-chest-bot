@@ -3,9 +3,13 @@ const supabase = require('../supabase');
 
 const XIVAPI_BASE = 'https://v2.xivapi.com';
 
+// Cache recipes to avoid redundant API calls within the same command execution
+const recipeCache = {};
+
 async function getRecipe(itemName) {
+  if (recipeCache[itemName.toLowerCase()]) return recipeCache[itemName.toLowerCase()];
+
   try {
-    // Search for the recipe by item name
     const searchRes = await fetch(
       `${XIVAPI_BASE}/api/search?sheets=Recipe&query=ItemResult.Name~"${encodeURIComponent(itemName)}"&fields=ItemResult.Name,AmountResult,Ingredient,AmountIngredient&limit=1`
     );
@@ -25,15 +29,57 @@ async function getRecipe(itemName) {
       }
     }
 
-    return {
+    const result = {
       name: recipe.ItemResult?.fields?.Name || itemName,
       yields: recipe.AmountResult || 1,
       ingredients
     };
+
+    recipeCache[itemName.toLowerCase()] = result;
+    return result;
   } catch (err) {
-    console.error('Recipe lookup failed:', err);
+    console.error(`Recipe lookup failed for "${itemName}":`, err);
     return null;
   }
+}
+
+// Recursively flatten a recipe down to raw materials
+// Returns a map of { itemName: totalQuantity } for only raw materials
+async function flattenRecipe(itemName, quantityNeeded, multiplier = 1) {
+  const recipe = await getRecipe(itemName);
+
+  if (!recipe || recipe.ingredients.length === 0) {
+    // This is a raw material — no recipe found
+    return { [itemName]: quantityNeeded * multiplier };
+  }
+
+  const batches = Math.ceil(quantityNeeded / recipe.yields);
+  const rawMaterials = {};
+
+  for (const ingredient of recipe.ingredients) {
+    const subMaterials = await flattenRecipe(
+      ingredient.name,
+      ingredient.quantity * batches,
+      multiplier
+    );
+
+    for (const [name, qty] of Object.entries(subMaterials)) {
+      rawMaterials[name] = (rawMaterials[name] || 0) + qty;
+    }
+  }
+
+  return rawMaterials;
+}
+
+// Build a full gathering list for a given item and quantity needed
+async function buildGatheringList(baseItemName, quantityNeeded) {
+  const recipe = await getRecipe(baseItemName);
+  if (!recipe) return null;
+
+  const batches = Math.ceil(quantityNeeded / recipe.yields);
+  const rawMaterials = await flattenRecipe(baseItemName, quantityNeeded);
+
+  return { recipe, batches, rawMaterials };
 }
 
 module.exports = {
@@ -80,7 +126,6 @@ module.exports = {
         return interaction.reply({ content: `❌ No active project found named "${projectName}".`, ephemeral: true });
       }
 
-      // Check item exists in project
       const { data: projectItem } = await supabase
         .from('project_items')
         .select('quantity_needed')
@@ -121,31 +166,31 @@ module.exports = {
         return interaction.reply(`⚒️ <@${interaction.user.id}> is now crafting **${itemName}** for **${project.name}**!`);
       }
 
-      // Gather — look up recipe and show gathering list
+      // Gather — recursively flatten recipe and show gathering list
       await interaction.deferReply({ ephemeral: true });
 
       const baseItemName = itemName.replace(/^[^-]+ - /, '');
-      const recipe = await getRecipe(baseItemName);
+      const result = await buildGatheringList(baseItemName, projectItem.quantity_needed);
 
-      if (!recipe) {
-        return interaction.editReply(`⛏️ Claimed gathering for **${itemName}** but couldn't find a recipe automatically. Check the ingredients manually.`);
+      if (!result) {
+        return interaction.editReply(`⛏️ Claimed gathering for **${itemName}** but couldn't find a recipe. Check ingredients manually.`);
       }
 
-      const neededQty = projectItem.quantity_needed;
-      const batches = Math.ceil(neededQty / recipe.yields);
+      const { recipe, batches, rawMaterials } = result;
+      const materialLines = Object.entries(rawMaterials)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, qty]) => `• ${qty}x ${name}`);
 
       const embed = new EmbedBuilder()
         .setTitle(`⛏️ Gathering List — ${baseItemName}`)
         .setColor(0x57F287)
-        .setDescription(`You need **${neededQty}x ${baseItemName}** — that's **${batches} batch${batches !== 1 ? 'es' : ''}** of ${recipe.yields}.`)
+        .setDescription(`You need **${projectItem.quantity_needed}x ${baseItemName}** (${batches} batch${batches !== 1 ? 'es' : ''} of ${recipe.yields})`)
         .addFields({
-          name: 'Materials to gather',
-          value: recipe.ingredients
-            .map(i => `• ${i.quantity * batches}x ${i.name}`)
-            .join('\n'),
+          name: 'Raw materials to gather',
+          value: materialLines.join('\n') || 'No materials found.',
           inline: false
         })
-        .setFooter({ text: 'Only you can see this message.' });
+        .setFooter({ text: 'Only you can see this. Use /gather to see your full list.' });
 
       return interaction.editReply({ embeds: [embed] });
     }
@@ -181,5 +226,10 @@ module.exports = {
 
       return interaction.reply(`✅ Dropped your claim on **${itemName}** for **${projectName}**.`);
     }
-  }
+  },
+
+  // Export helpers so gather.js can reuse them
+  buildGatheringList,
+  flattenRecipe,
+  getRecipe
 };
