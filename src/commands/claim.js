@@ -3,28 +3,33 @@ const supabase = require('../supabase');
 
 const XIVAPI_BASE = 'https://xivapi.com';
 
+const XIVAPI_BASE = 'https://v2.xivapi.com';
+
 async function getRecipe(itemName) {
   try {
-    const recipeRes = await fetch(`${XIVAPI_BASE}/search?string=${encodeURIComponent(itemName)}&indexes=Recipe&limit=1`);
-    const recipeData = await recipeRes.json();
-    const recipe = recipeData.Results?.[0];
+    // Search for the recipe by item name
+    const searchRes = await fetch(
+      `${XIVAPI_BASE}/api/search?sheets=Recipe&query=ItemResult.Name~"${encodeURIComponent(itemName)}"&fields=ItemResult.Name,AmountResult,Ingredient,AmountIngredient&limit=1`
+    );
+    const searchData = await searchRes.json();
+    const recipe = searchData.results?.[0]?.fields;
     if (!recipe) return null;
 
-    const detailRes = await fetch(`${XIVAPI_BASE}/Recipe/${recipe.ID}`);
-    const detail = await detailRes.json();
-
     const ingredients = [];
-    for (let i = 0; i <= 9; i++) {
-      const ing = detail[`ItemIngredient${i}`];
-      const qty = detail[`AmountIngredient${i}`];
-      if (ing && qty > 0) {
-        ingredients.push({ name: ing.Name, quantity: qty });
+    const ingArray = recipe.Ingredient || [];
+    const amtArray = recipe.AmountIngredient || [];
+
+    for (let i = 0; i < ingArray.length; i++) {
+      const name = ingArray[i]?.fields?.Name;
+      const qty = amtArray[i];
+      if (name && qty > 0) {
+        ingredients.push({ name, quantity: qty });
       }
     }
 
     return {
-      name: detail.ItemResult?.Name || itemName,
-      yields: detail.AmountResult || 1,
+      name: recipe.ItemResult?.fields?.Name || itemName,
+      yields: recipe.AmountResult || 1,
       ingredients
     };
   } catch (err) {
