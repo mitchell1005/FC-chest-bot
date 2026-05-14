@@ -144,8 +144,19 @@ module.exports = {
       if (readyLines.length) {
         embed.addFields({ name: '✅ In Chest', value: readyLines.join('\n'), inline: false });
       }
+      if (readyLines.length) {
+        embed.addFields({ name: '✅ In Chest', value: readyLines.join('\n'), inline: false });
+      }
+
       if (neededLines.length) {
-        embed.addFields({ name: '⏳ Still Needed', value: neededLines.join('\n'), inline: false });
+        const chunks = chunkLines(neededLines, 1024);
+        for (let i = 0; i < chunks.length; i++) {
+          embed.addFields({
+            name: i === 0 ? '⏳ Still Needed' : '⏳ Still Needed (cont.)',
+            value: chunks[i],
+            inline: false
+          });
+        }
       }
       if (!readyLines.length && !neededLines.length) {
         embed.setDescription('No items defined for this project yet. Use `/project add-item` to add some.');
